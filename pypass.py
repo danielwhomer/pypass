@@ -3,9 +3,16 @@ import os
 import random
 import struct
 import json
-from Crypto.Cipher import AES
-from Crypto.Hash import SHA256
-from Crypto import Random
+#from Crypto.Cipher import AES
+#from Crypto.Hash import SHA256
+#from Crypto import Random
+from cryptography.fernet import Fernet
+import secrets
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from base64 import urlsafe_b64encode as b64e, urlsafe_b64decode as b64d
+
 
 
 class CryptoDB():
@@ -13,60 +20,51 @@ class CryptoDB():
 		self._file = _file
 		self.contents = ""
 		self.pwdlist = {}
+		self.iterations = 100_000
+		self.backend = default_backend()
 	
 	def add_password(self, name, password):
 		#need to check if name already exists		
 		self.pwdlist[name] = password
 
 
-	def encrypt(self, key, chunksize=64*1024):
-		out_filename = self._file + '.enc'
+	def _derive_key(self, password: bytes, salt: bytes, iterations: int = 100_000) -> bytes:
+		#Derive a secret key from a given password and salt
+		kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=iterations,backend=self.backend)
+		return b64e(kdf.derive(password))
 
-		iv = os.urandom(16)		
-		encryptor = AES.new(key, AES.MODE_CBC, iv)
-		filesize = os.path.getsize(self._file)
-	
+	def password_encrypt(self, message: bytes, password: str, iterations: int = 100_000) -> bytes:
 		self.contents ="{\"passwords:["
 		for pwd in self.pwdlist:
 			self.contents += json.dumps({"name": pwd, "password": self.pwdlist[pwd]})
 		self.contents += "]}"
-
-		print(self.contents)
-
 		
-		#with open(self._file, 'rb') as infile:
-			#with open(out_filename, 'wb') as outfile:
-				#outfile.write(struct.pack('<Q', filesize))
-				#outfile.write(iv)
+		salt = secrets.token_bytes(16)
+		key = self._derive_key(password.encode(), salt, self.iterations)
+		return b64e( 
+							b'%b%b%b' % (
+								salt,
+								iterations.to_bytes(4,'big'),
+								b64d(Fernet(key).encrypt(self.contents.encode())),
+							)
+					)
 
-				#while True:
-					#chunk = infile.read(chunksize)
-					#if len(chunk) == 0:
-						#break
-					#elif len(chunk) % 16 != 0:
-						#chunk += ' '.encode('utf-8') * (16 - len(chunk) % 16)
+	def password_decrypt(self, token: bytes, password: str) -> bytes:
+		decoded = b64d(token)
+		salt, iter, token = decoded[:16], decoded[16:20], b64e(decoded[20:])
+		iterations= int.from_bytes(iter, 'big')
+		key = self._derive_key(password.encode(), salt, iterations)
+		return Fernet(key).decrypt(token)
 
-					#outfile.write(encryptor.encrypt(chunk))
-	
-	def decrypt(self, key, chunksize=24*1024):
-		#Currently decrypts a file, plan is to change to decrypt data in volatile memory
-		out_filename = os.path.splitext(self._file)[0]
+	def load_from_file(self, _file, token, password):
+		if not _file:
+			_file = self._file
 
-		with open(self._file, 'rb') as infile:
-			origsize = struct.unpack('<Q', infile.read(struct.calcsize('Q')))[0]
-			iv = infile.read(16)
-			decryptor = AES.new(key, AES.MODE_CBC, iv)
-			
-			decrypted_data = ""
-			while True:
-				chunk = infile.read(chunksize)
-				if len(chunk) == 0:
-					break
-				decrypted_data += decryptor.decrypt(chunk).decode()
-			decrypted_data = decrypted_data[:origsize]
+		with open(_file, 'rb') as f:
+			data = f.read()
 
-		#self.contents = json.loads(decrypted_data)
-		self.contents = decrypted_data
+		self.contents = self.password_decrypt(token, password).decode()
+		print(self.contents)
 		
 
 class Password():
@@ -91,5 +89,11 @@ if __name__ == '__main__':
 	c.add_password('test1', 'testpwd1')
 	c.add_password('test2', 'testpwd2')
 	key = bytes('passwordpassword', 'utf-8')
-	
-	c.encrypt(key)
+	message = c.contents
+	password = 'passwordpassword'
+
+	token = c.password_encrypt(message.encode(), password)
+	c.load_from_file('pwdlist.json.enc',token, password)
+
+
+
