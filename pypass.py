@@ -122,14 +122,13 @@ class Password():
 		return self.name
 
 """---------------------UI Definitions--------------------------------"""
-def input_password():
-	pass_name = input('Enter name of password: ')
+def input_password(name):
 	try:
-		pass_value = getpass.getpass(prompt='Enter the password: ')
+		pass_value = getpass.getpass(prompt='Enter the password for ' + name + ': ')
 	except Exception as error:
 		print('ERROR', error)
 	else:
-		return pass_name, pass_value
+		return pass_value
 
 def input_name():
 	pass_name = input('Enter name of password: ')
@@ -144,8 +143,8 @@ if __name__ == '__main__':
 	parser.add_argument('--file', action='store', type=str, default='pwdlist.json.enc', help='The file location of the encrypted database')
 	parser.add_argument('--get', action='store', type=str, help='Return the password value for a given name')
 	parser.add_argument('--search', '-s', action='store', type=str, help='Search for a password')
-	parser.add_argument('--add','-a', action='store_true', help='Add a new password to the database')
-	parser.add_argument('--remove','-r', action='store_true', help='Remove a password from the database')
+	parser.add_argument('--add','-a', action='store', help='Add a new password to the database')
+	parser.add_argument('--remove','-r', action='store', help='Remove a password from the database')
 	args = parser.parse_args()
 
 	c = CryptoDB(args.file)
@@ -163,18 +162,18 @@ if __name__ == '__main__':
 	c.parse_json(d)
 
 	if args.add:
-		name,value = input_password()
-		c.add_password(name, value)
+		value = input_password(args.add)
+		c.add_password(args.add, value)
 	
 	if args.remove:
-		name = input_name()
+		name = args.remove
 		c.remove_password(name)
 	
 	if args.search:
 		search = args.search
 		results = c.search_password(search)
 		if not results:
-			print("No passwords found for search term " + search + ".")
+			print("No passwords found for search term \"" + search + "\".")
 		else:
 			print("The following entries were found:")
 			for result in results:
