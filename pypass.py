@@ -1,11 +1,12 @@
 import argparse
-import os
+import os, sys
 import random
 import struct
 import json
 import getpass
 import re
 from cryptography.fernet import Fernet
+from cryptography.fernet import InvalidToken
 import secrets
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -79,6 +80,10 @@ class CryptoDB():
 		salt, iter, token = decoded[:16], decoded[16:20], b64e(decoded[20:])
 		iterations= int.from_bytes(iter, 'big')
 		key = self._derive_key(password.encode(), salt, iterations)
+		try:
+			data = Fernet(key).decrypt(token)
+		except InvalidToken as e:
+			return None
 		return Fernet(key).decrypt(token)
 
 	def get_salt(self, token: bytes) -> bytes:
@@ -130,9 +135,9 @@ def input_name():
 	pass_name = input('Enter name of password: ')
 	return pass_name
 
-def input_key() -> bytes:
+def input_key():
 	key = pass_value = getpass.getpass(prompt='Enter the master key for the database: ')
-	return bytes('passwordpassword', 'utf-8')
+	return pass_value
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Python Password Database')
@@ -147,9 +152,14 @@ if __name__ == '__main__':
 	data = c.load_from_file('pwdlist.json.enc')
 	token = c.get_token(b64e(data))	
 	salt = c.get_salt(token)
-	password = 'passwordpassword'	
+	password = input_key()
 
-	d = c.password_decrypt(data, password).decode()
+	d = c.password_decrypt(data, password)
+	if not d:
+		print("Something went wrong. Did you enter the correct master key?")
+		sys.exit()
+	else:
+		d = d.decode()
 	c.parse_json(d)
 
 
@@ -170,8 +180,6 @@ if __name__ == '__main__':
 			print("The following entries were found:")
 			for result in results:
 				print(result)
-
-	c.add_password('test2', 'test2')
 
 	c.password_encrypt(password)
 
