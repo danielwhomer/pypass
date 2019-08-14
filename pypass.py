@@ -100,7 +100,7 @@ class CryptoDB():
 		with open(self._file, 'wb') as f:
 			f.write(data)
 
-	def load_from_file(self, _file):
+	def load_from_file(self, _file = None):
 		if not _file:
 			_file = self._file
 
@@ -143,13 +143,13 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Python Password Database')
 	parser.add_argument('--file', action='store', type=str, default='pwdlist.json.enc', help='The file location of the encrypted database')
 	parser.add_argument('--get', action='store', type=str, help='Return the password value for a given name')
-	parser.add_argument('--search', action='store', type=str, help='Search for a password')
-	parser.add_argument('--add', action='store_true', help='Add a new password to the database')
-	parser.add_argument('--remove', action='store_true', help='Remove a password from the database')
+	parser.add_argument('--search', '-s', action='store', type=str, help='Search for a password')
+	parser.add_argument('--add','-a', action='store_true', help='Add a new password to the database')
+	parser.add_argument('--remove','-r', action='store_true', help='Remove a password from the database')
 	args = parser.parse_args()
 
 	c = CryptoDB(args.file)
-	data = c.load_from_file('pwdlist.json.enc')
+	data = c.load_from_file()
 	token = c.get_token(b64e(data))	
 	salt = c.get_salt(token)
 	password = input_key()
@@ -161,7 +161,6 @@ if __name__ == '__main__':
 	else:
 		d = d.decode()
 	c.parse_json(d)
-
 
 	if args.add:
 		name,value = input_password()
