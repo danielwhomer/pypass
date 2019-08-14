@@ -32,9 +32,10 @@ class CryptoDB():
 		return b64e(kdf.derive(password))
 
 	def password_encrypt(self, password: str, iterations: int = 100_000) -> bytes:
-		self.contents ="{\"passwords:["
+		self.contents ="{\"passwords\":["
 		for pwd in self.pwdlist:
-			self.contents += json.dumps({"name": pwd, "password": self.pwdlist[pwd]})
+			self.contents = self.contents + json.dumps({"name": pwd, "password": self.pwdlist[pwd]}) + ','
+		self.contents = self.contents[:-1]
 		self.contents += "]}"
 		
 		salt = secrets.token_bytes(16)
@@ -48,6 +49,13 @@ class CryptoDB():
 					)
 		self.save_to_file(self._file, data)
 
+	def parse_json(self, data):
+		parse = json.loads(data)
+		print(parse)
+		for pwd in parse['passwords']:
+			self.add_password(pwd['name'], pwd['password'])
+			
+		
 	def password_decrypt(self, token: bytes, password: str) -> bytes:
 		decoded = b64d(token)
 		salt, iter, token = decoded[:16], decoded[16:20], b64e(decoded[20:])
@@ -92,15 +100,16 @@ class Password():
 
 """---------------------GUI Definitions--------------------------------"""
 def input_password():
-	pass_name = input('Enter name of password')
+	pass_name = input('Enter name of password: ')
 	try:
-		pass_value = getpass.getpass(prompt='Enter the password:')
+		pass_value = getpass.getpass(prompt='Enter the password: ')
 	except Exception as error:
 		print('ERROR', error)
 	else:
 		return pass_name, pass_value
 
 def input_key() -> bytes:
+	key = pass_value = getpass.getpass(prompt='Enter the master key for the database: ')
 	return bytes('passwordpassword', 'utf-8')
 
 if __name__ == '__main__':
@@ -121,16 +130,16 @@ if __name__ == '__main__':
 	print(salt)
 	password = 'passwordpassword'	
 
-	c.add_password('test1', 'testpwd1')
-	c.add_password('test2', 'testpwd2')
-	
-	d = c.password_decrypt(data, password)
-	print(d)
+	d = c.password_decrypt(data, password).decode()
+	c.parse_json(d)
+
+
 	if args.add:
 		name,value = input_password()
 		c.add_password(name, value)
+	c.add_password('test2', 'test2')
 
-	#c.password_encrypt(password)
+	c.password_encrypt(password)
 
 
 
