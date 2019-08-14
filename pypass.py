@@ -25,7 +25,13 @@ class CryptoDB():
 		#need to check if name already exists		
 		self.pwdlist[name] = password
 
-	 
+	def remove_password(self, name):
+		try:
+			deleted = self.pwdlist.pop(name)
+		except KeyError as e:
+			print("ERROR: Password with name " + name + " not found.")
+
+			
 	def _derive_key(self, password: bytes, salt: bytes, iterations: int = 100_000) -> bytes:
 		#Derive a secret key from a given password and salt
 		kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=iterations,backend=self.backend)
@@ -98,7 +104,7 @@ class Password():
 	def get_name(self):
 		return self.name
 
-"""---------------------GUI Definitions--------------------------------"""
+"""---------------------UI Definitions--------------------------------"""
 def input_password():
 	pass_name = input('Enter name of password: ')
 	try:
@@ -107,6 +113,10 @@ def input_password():
 		print('ERROR', error)
 	else:
 		return pass_name, pass_value
+
+def input_name():
+	pass_name = input('Enter name of password: ')
+	return pass_name
 
 def input_key() -> bytes:
 	key = pass_value = getpass.getpass(prompt='Enter the master key for the database: ')
@@ -118,16 +128,13 @@ if __name__ == '__main__':
 	parser.add_argument('--get', action='store', type=str, help='Return the password value for a given name')
 	parser.add_argument('--search', action='store', type=str, help='Search for a password')
 	parser.add_argument('--add', action='store_true', help='Add a new password to the database')
+	parser.add_argument('--remove', action='store_true', help='Remove a password from the database')
 	args = parser.parse_args()
 
 	c = CryptoDB(args.file)
 	data = c.load_from_file('pwdlist.json.enc')
 	token = c.get_token(b64e(data))	
-	print('initial token:')	
-	print(token)
 	salt = c.get_salt(token)
-	print('\n' + 'initial salt:')	
-	print(salt)
 	password = 'passwordpassword'	
 
 	d = c.password_decrypt(data, password).decode()
@@ -137,6 +144,11 @@ if __name__ == '__main__':
 	if args.add:
 		name,value = input_password()
 		c.add_password(name, value)
+	
+	if args.remove:
+		name = input_name()
+		c.remove_password(name)
+
 	c.add_password('test2', 'test2')
 
 	c.password_encrypt(password)
