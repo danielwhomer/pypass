@@ -40,12 +40,17 @@ class CryptoDB():
 		return results
 				
 			
-	def _derive_key(self, password: bytes, salt: bytes, iterations: int = 100_000) -> bytes:
+	def _derive_key(self, password: bytes, salt: bytes, iterations: int = None) -> bytes:
+		if iterations is None:
+			iterations = self.iterations
 		#Derive a secret key from a given password and salt
 		kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=iterations,backend=self.backend)
 		return b64e(kdf.derive(password))
 
-	def password_encrypt(self, password: str, iterations: int = 100_000) -> bytes:
+	def password_encrypt(self, password: str, iterations: int = None) -> bytes:
+		if iterations is None:
+			iterations = self.iterations
+
 		self.contents ="{\"passwords\":["
 		for pwd in self.pwdlist:
 			self.contents = self.contents + json.dumps({"name": pwd, "password": self.pwdlist[pwd]}) + ','

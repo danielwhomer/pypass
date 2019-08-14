@@ -7,6 +7,13 @@ Available functionality:
 --add
 Adds a password (name, and password value) to the database
 
+--remove
+Remove a password from the database
+
+--search term
+Searches the database and returns all entries that match the specified term
+Example: pypass.py --search Amazon
+
 
 Security features:
 The database is saved to an encrypted file (Fernet encryption).
