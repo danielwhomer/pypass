@@ -3,9 +3,7 @@ import os
 import random
 import struct
 import json
-#from Crypto.Cipher import AES
-#from Crypto.Hash import SHA256
-#from Crypto import Random
+import getpass
 from cryptography.fernet import Fernet
 import secrets
 from cryptography.hazmat.backends import default_backend
@@ -27,13 +25,13 @@ class CryptoDB():
 		#need to check if name already exists		
 		self.pwdlist[name] = password
 
-
+	 
 	def _derive_key(self, password: bytes, salt: bytes, iterations: int = 100_000) -> bytes:
 		#Derive a secret key from a given password and salt
 		kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=iterations,backend=self.backend)
 		return b64e(kdf.derive(password))
 
-	def password_encrypt(self, message: bytes, password: str, iterations: int = 100_000) -> bytes:
+	def password_encrypt(self, password: str, iterations: int = 100_000) -> bytes:
 		self.contents ="{\"passwords:["
 		for pwd in self.pwdlist:
 			self.contents += json.dumps({"name": pwd, "password": self.pwdlist[pwd]})
@@ -41,13 +39,14 @@ class CryptoDB():
 		
 		salt = secrets.token_bytes(16)
 		key = self._derive_key(password.encode(), salt, self.iterations)
-		return b64e( 
+		data = b64e( 
 							b'%b%b%b' % (
 								salt,
 								iterations.to_bytes(4,'big'),
 								b64d(Fernet(key).encrypt(self.contents.encode())),
 							)
 					)
+		self.save_to_file(self._file, data)
 
 	def password_decrypt(self, token: bytes, password: str) -> bytes:
 		decoded = b64d(token)
@@ -56,15 +55,28 @@ class CryptoDB():
 		key = self._derive_key(password.encode(), salt, iterations)
 		return Fernet(key).decrypt(token)
 
-	def load_from_file(self, _file, token, password):
+	def get_salt(self, token: bytes) -> bytes:
+		decoded = b64d(token)
+		salt = decoded[:16]
+		return salt
+
+	def get_token(self, data: bytes) -> bytes:
+		decoded = b64d(data)
+		token = b64e(decoded[20:])
+		return token
+
+	def save_to_file(self, _file, data):
+		with open(self._file, 'wb') as f:
+			f.write(data)
+
+	def load_from_file(self, _file):
 		if not _file:
 			_file = self._file
 
 		with open(_file, 'rb') as f:
 			data = f.read()
-
-		self.contents = self.password_decrypt(token, password).decode()
-		print(self.contents)
+		self.contents = data
+		return data
 		
 
 class Password():
@@ -78,22 +90,47 @@ class Password():
 	def get_name(self):
 		return self.name
 
+"""---------------------GUI Definitions--------------------------------"""
+def input_password():
+	pass_name = input('Enter name of password')
+	try:
+		pass_value = getpass.getpass(prompt='Enter the password:')
+	except Exception as error:
+		print('ERROR', error)
+	else:
+		return pass_name, pass_value
+
+def input_key() -> bytes:
+	return bytes('passwordpassword', 'utf-8')
+
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Python Password Database')
 	parser.add_argument('--file', action='store', type=str, default='pwdlist.json.enc', help='The file location of the encrypted database')
 	parser.add_argument('--get', action='store', type=str, help='Return the password value for a given name')
 	parser.add_argument('--search', action='store', type=str, help='Search for a password')
+	parser.add_argument('--add', action='store_true', help='Add a new password to the database')
 	args = parser.parse_args()
 
 	c = CryptoDB(args.file)
+	data = c.load_from_file('pwdlist.json.enc')
+	token = c.get_token(b64e(data))	
+	print('initial token:')	
+	print(token)
+	salt = c.get_salt(token)
+	print('\n' + 'initial salt:')	
+	print(salt)
+	password = 'passwordpassword'	
+
 	c.add_password('test1', 'testpwd1')
 	c.add_password('test2', 'testpwd2')
-	key = bytes('passwordpassword', 'utf-8')
-	message = c.contents
-	password = 'passwordpassword'
+	
+	d = c.password_decrypt(data, password)
+	print(d)
+	if args.add:
+		name,value = input_password()
+		c.add_password(name, value)
 
-	token = c.password_encrypt(message.encode(), password)
-	c.load_from_file('pwdlist.json.enc',token, password)
+	#c.password_encrypt(password)
 
 
 
