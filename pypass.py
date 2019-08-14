@@ -4,6 +4,7 @@ import random
 import struct
 import json
 import getpass
+import re
 from cryptography.fernet import Fernet
 import secrets
 from cryptography.hazmat.backends import default_backend
@@ -21,16 +22,23 @@ class CryptoDB():
 		self.iterations = 100_000
 		self.backend = default_backend()
 	
-	def add_password(self, name, password):
+	def add_password(self, name: str, password: str):
 		#need to check if name already exists		
 		self.pwdlist[name] = password
 
-	def remove_password(self, name):
+	def remove_password(self, name: str):
 		try:
 			deleted = self.pwdlist.pop(name)
 		except KeyError as e:
 			print("ERROR: Password with name " + name + " not found.")
 
+	def search_password(self, name: str):
+		results = []		
+		for key in self.pwdlist.keys():
+			if name in key:
+				results.append(key)
+		return results
+				
 			
 	def _derive_key(self, password: bytes, salt: bytes, iterations: int = 100_000) -> bytes:
 		#Derive a secret key from a given password and salt
@@ -57,7 +65,6 @@ class CryptoDB():
 
 	def parse_json(self, data):
 		parse = json.loads(data)
-		print(parse)
 		for pwd in parse['passwords']:
 			self.add_password(pwd['name'], pwd['password'])
 			
@@ -148,6 +155,16 @@ if __name__ == '__main__':
 	if args.remove:
 		name = input_name()
 		c.remove_password(name)
+	
+	if args.search:
+		search = args.search
+		results = c.search_password(search)
+		if not results:
+			print("No passwords found for search term " + search + ".")
+		else:
+			print("The following entries were found:")
+			for result in results:
+				print(result)
 
 	c.add_password('test2', 'test2')
 
